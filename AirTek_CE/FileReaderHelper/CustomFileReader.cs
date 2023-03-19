@@ -46,16 +46,18 @@ namespace AirTek_CE
 
                 List<Order> batch = new List<Order>();
                 while (i < _batchSize && !string.IsNullOrEmpty(inputRaw = interrupString ?? _streamReader.ReadLine()))
-                {                   
+                {
                     var inputArray = Regex.Split(inputRaw, jsonNodePattern);
-                    if (inputArray.Length > 0)
+                    if (interrupString != null)
                         interrupString = null;
 
                     for (int k = 0; k < inputArray.Length; k++)
                     {
                         var input = inputArray[k]?.Trim();
-                        if (input == "{" || input == "}" || input == "")
+                        if (((input == "{" || input == "}") && string.IsNullOrWhiteSpace(json)) || string.IsNullOrWhiteSpace(input))
+                        {
                             continue;
+                        }
 
                         if (j++ == 0)
                         {
@@ -68,13 +70,7 @@ namespace AirTek_CE
                         else
                         {
                             json += input.Replace(jsonNodeEnd, "}}");
-                            dynamic order = JObject.Parse(json);
-
-                            batch.Add(new Order()
-                            {
-                                Name = order.name,
-                                Destination = order.data.destination
-                            });
+                            ParceDynamicOrder(batch, json);
 
                             json = string.Empty;
                             j = 0;
@@ -82,10 +78,15 @@ namespace AirTek_CE
 
                             if (i == _batchSize)
                             {
-                                interrupString = inputRaw.Replace(jsonNodeEnd, "");
+                                interrupString = inputRaw.Replace(jsonNodeEnd, string.Empty);
                             }
                         }
                     }
+                }
+
+                if (!string.IsNullOrWhiteSpace(json) && string.IsNullOrWhiteSpace(interrupString))
+                {
+                    ParceDynamicOrder(batch, json);
                 }
 
                 if (batch.Count != 0)
@@ -95,6 +96,17 @@ namespace AirTek_CE
             }
 
             Dispose();
+        }
+
+        private void ParceDynamicOrder(List<Order> batch, string json)
+        {
+            dynamic order = JObject.Parse(json);
+
+            batch.Add(new Order()
+            {
+                Name = order.name,
+                Destination = order.data.destination
+            });
         }
 
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
